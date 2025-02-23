@@ -14,6 +14,19 @@ test "isFileExisting" {
     try require.isFalse(isExisting("testdata/non_existing_file"));
 }
 
+/// Check if a file or directory is a symbol link
+pub fn isSymLink(path: []const u8) !bool {
+    const flags: std.posix.O = .{
+        .SYMLINK = true,
+    };
+    const fd = try std.posix.open(path, flags, 0o600);
+    defer std.posix.close(fd);
+
+    const stat = try std.posix.fstat(fd);
+
+    return std.posix.S.ISLNK(stat.mode);
+}
+
 /// Expand tidle to home directory
 pub fn expandTildeAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     if (!std.mem.startsWith(u8, path, "~")) {
