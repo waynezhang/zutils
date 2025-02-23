@@ -1,0 +1,15 @@
+.{
+    .name = "zutils",
+    .version = "0.0.1",
+    .dependencies = .{
+        .protest = .{
+            .url = "git+https://github.com/waynezhang/protest#da9b761a44ec7ec954dcad6fdd05c35bfe1ae19e",
+            .hash = "1220404b0700de6e5c093f0ff22656dd9c74f654dcdfbb402b59900459da06c39316",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
