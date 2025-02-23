@@ -1,0 +1,20 @@
+name: Test
+on:
+  - push
+jobs:
+  build:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+           fetch-depth: 0
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: master
+
+      - name: Run tests
+        run: zig build test --summary all
