@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) void {
 
     const lib = b.addStaticLibrary(.{
         .name = "zutils",
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = mod.root_source_file.?,
         .target = target,
         .optimize = optimize,
     });

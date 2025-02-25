@@ -68,6 +68,46 @@ test "expandTildeAlloc" {
     }
 }
 
+/// Converts an absolute path to use tilde notation for the home directory if applicable
+pub fn contractTildeAlloc(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    const home_dir = if (std.process.getEnvVarOwned(allocator, "HOME")) |home|
+        home
+    else |err|
+        return err;
+    defer allocator.free(home_dir);
+
+    if (std.mem.startsWith(u8, path, home_dir)) {
+        const buf = try allocator.alloc(u8, path.len - home_dir.len + 1);
+        buf[0] = '~';
+        std.mem.copyBackwards(u8, buf[1..], path[home_dir.len..]);
+        return buf;
+    } else {
+        return allocator.dupe(u8, path);
+    }
+}
+
+test "contractTildeAlloc" {
+    const alloc = std.testing.allocator;
+    {
+        const path = try contractTildeAlloc(alloc, "/test.txt");
+        defer alloc.free(path);
+        try require.equal("/test.txt", path);
+    }
+
+    {
+        const home = try std.process.getEnvVarOwned(alloc, "HOME");
+        defer alloc.free(home);
+
+        const path = try std.fs.path.join(alloc, &[_][]const u8{ home, "test.txt" });
+        defer alloc.free(path);
+
+        const contracted = try contractTildeAlloc(alloc, path);
+        defer alloc.free(contracted);
+
+        try require.equal("~/test.txt", contracted);
+    }
+}
+
 /// Resolve a file path to absolute path
 pub fn toAbsolutePathAlloc(alloc: std.mem.Allocator, path: []const u8, base_path: ?[]const u8) ![]const u8 {
     if (std.fs.path.isAbsolute(path)) {
