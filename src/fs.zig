@@ -16,8 +16,15 @@ test "isFileExisting" {
 
 /// Check if a file or directory is a symbol link
 pub fn isSymLink(path: []const u8) !bool {
-    const flags: std.posix.O = .{
-        .SYMLINK = true,
+    const flags: std.posix.O = switch (@import("builtin").target.os.tag) {
+        .macos => .{
+            .SYMLINK = true,
+        },
+        .linux => .{
+            .NOFOLLOW = true,
+            .PATH = true,
+        },
+        else => @compileError("Unsupported platform"),
     };
     const fd = try std.posix.open(path, flags, 0o600);
     defer std.posix.close(fd);
@@ -25,6 +32,27 @@ pub fn isSymLink(path: []const u8) !bool {
     const stat = try std.posix.fstat(fd);
 
     return std.posix.S.ISLNK(stat.mode);
+}
+
+test "isSymLink" {
+    const alloc = std.testing.allocator;
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const path = try tmp.dir.realpathAlloc(alloc, ".");
+    defer alloc.free(path);
+
+    try tmp.dir.makeDir("./some_dir");
+
+    const dir_abs = try toAbsolutePathAlloc(alloc, "./some_dir", path);
+    defer alloc.free(dir_abs);
+    const link_abs = try toAbsolutePathAlloc(alloc, "./a_link", path);
+    defer alloc.free(link_abs);
+
+    try std.fs.symLinkAbsolute(dir_abs, link_abs, .{});
+
+    try require.isFalse(try isSymLink(dir_abs));
+    try require.isTrue(try isSymLink(link_abs));
 }
 
 /// Expand tidle to home directory
