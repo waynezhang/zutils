@@ -1,5 +1,5 @@
 .{
-    .name = "zutils",
+    .name = .zutils,
     .version = "0.0.1",
     .dependencies = .{
         .protest = .{
@@ -12,4 +12,5 @@
         "build.zig.zon",
         "src",
     },
+    .fingerprint = 0x895623f2da01d58c,
 }
