@@ -16,6 +16,13 @@ pub fn init() void {
     config = std.io.tty.detectConfig(std.io.getStdOut());
 }
 
+pub inline fn fatal(comptime format: []const u8, args: anytype) void {
+    if (current_level >= @intFromEnum(Level.err) and !builtin.is_test) {
+        colorPrint(.red, format, args);
+        std.process.exit(1);
+    }
+}
+
 pub inline fn err(comptime format: []const u8, args: anytype) void {
     if (current_level >= @intFromEnum(Level.err) and !builtin.is_test) {
         colorPrint(.red, format, args);
