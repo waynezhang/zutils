@@ -116,3 +116,51 @@ test "parseAddrPort" {
         try require.equalError(error.InvalidCharacter, err);
     }
 }
+
+/// Encodes a string for safe use in URL query parameters.
+/// Caller must free the returned memory.
+/// Preserves alphanumerics, unreserved chars (-._~), and non-ASCII characters (including CJK).
+/// Only ASCII special characters are percent-encoded.
+pub fn encodeQueryComponentAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
+    var result = std.ArrayList(u8).init(allocator);
+    defer result.deinit();
+
+    // This function preserves alphanumerics, unreserved chars, and all non-ASCII chars
+    const isValidQueryChar = struct {
+        fn isValid(c: u8) bool {
+            return std.ascii.isAlphanumeric(c) or c == '-' or c == '.' or c == '_' or c == '~' or c >= 128;
+        }
+    }.isValid;
+
+    try std.Uri.Component.percentEncode(result.writer(), input, isValidQueryChar);
+
+    return result.toOwnedSlice();
+}
+
+test "encodeQueryComponentAlloc" {
+    const allocator = std.testing.allocator;
+
+    // Test basic ASCII encoding
+    {
+        const input = "hello world";
+        const encoded = try encodeQueryComponentAlloc(allocator, input);
+        defer allocator.free(encoded);
+        try require.equal("hello%20world", encoded);
+    }
+
+    // Test special characters
+    {
+        const input = "a=1&b=2+c?d/e";
+        const encoded = try encodeQueryComponentAlloc(allocator, input);
+        defer allocator.free(encoded);
+        try require.equal("a%3D1%26b%3D2%2Bc%3Fd%2Fe", encoded);
+    }
+
+    // Test non-ASCII Unicode characters (should be preserved)
+    {
+        const input = "こんにちは"; // "Hello" in Japanese
+        const encoded = try encodeQueryComponentAlloc(allocator, input);
+        defer allocator.free(encoded);
+        try require.equal("こんにちは", encoded);
+    }
+}
