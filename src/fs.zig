@@ -1,5 +1,5 @@
 const std = @import("std");
-const require = @import("protest").require;
+const testing = @import("std").testing;
 
 /// Check if a file or directory is existing or not.
 pub fn isExisting(path: []const u8) bool {
@@ -10,8 +10,8 @@ pub fn isExisting(path: []const u8) bool {
 }
 
 test "isFileExisting" {
-    try require.isTrue(isExisting("testdata/test_file"));
-    try require.isFalse(isExisting("testdata/non_existing_file"));
+    try testing.expect(isExisting("testdata/test_file"));
+    try testing.expect(!isExisting("testdata/non_existing_file"));
 }
 
 /// Check if a file or directory is a symbol link
@@ -51,8 +51,8 @@ test "isSymLink" {
 
     try std.fs.symLinkAbsolute(dir_abs, link_abs, .{});
 
-    try require.isFalse(try isSymLink(dir_abs));
-    try require.isTrue(try isSymLink(link_abs));
+    try testing.expect(!try isSymLink(dir_abs));
+    try testing.expect(try isSymLink(link_abs));
 }
 
 /// Expand tidle to home directory
@@ -77,7 +77,7 @@ test "expandTildeAlloc" {
     {
         const path = try expandTildeAlloc(alloc, "/test.txt");
         defer alloc.free(path);
-        try require.equal("/test.txt", path);
+        try testing.expectEqualStrings("/test.txt", path);
     }
 
     {
@@ -92,7 +92,7 @@ test "expandTildeAlloc" {
         });
         defer alloc.free(expected);
 
-        try require.equal(expected, path);
+        try testing.expectEqualStrings(expected, path);
     }
 }
 
@@ -119,7 +119,7 @@ test "contractTildeAlloc" {
     {
         const path = try contractTildeAlloc(alloc, "/test.txt");
         defer alloc.free(path);
-        try require.equal("/test.txt", path);
+        try testing.expectEqualStrings("/test.txt", path);
     }
 
     {
@@ -132,7 +132,7 @@ test "contractTildeAlloc" {
         const contracted = try contractTildeAlloc(alloc, path);
         defer alloc.free(contracted);
 
-        try require.equal("~/test.txt", contracted);
+        try testing.expectEqualStrings("~/test.txt", contracted);
     }
 }
 
@@ -170,7 +170,7 @@ test "toAbsolutePathAlloc" {
         const p = try toAbsolutePathAlloc(alloc, "/tmp/test.txt", cwd);
         defer alloc.free(p);
 
-        try require.equal("/tmp/test.txt", p);
+        try testing.expectEqualStrings("/tmp/test.txt", p);
     }
     {
         const p = try toAbsolutePathAlloc(alloc, "test.txt", cwd);
@@ -182,7 +182,7 @@ test "toAbsolutePathAlloc" {
         });
         defer alloc.free(expected);
 
-        try require.equal(expected, p);
+        try testing.expectEqualStrings(expected, p);
     }
     {
         const p = try toAbsolutePathAlloc(alloc, "~/test.txt", cwd);
@@ -194,7 +194,7 @@ test "toAbsolutePathAlloc" {
         });
         defer alloc.free(expected);
 
-        try require.equal(expected, p);
+        try testing.expectEqualStrings(expected, p);
     }
     {
         const p = try toAbsolutePathAlloc(alloc, "test.txt", "~");
@@ -206,7 +206,7 @@ test "toAbsolutePathAlloc" {
         });
         defer alloc.free(expected);
 
-        try require.equal(expected, p);
+        try testing.expectEqualStrings(expected, p);
     }
 }
 
@@ -220,10 +220,12 @@ pub fn sha256Alloc(alloc: std.mem.Allocator, path: []const u8) ![]const u8 {
 
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
 
-    var buffered = std.io.bufferedReader(file.reader());
+    var reader_buffer: [8192]u8 = undefined;
+    var reader = file.reader(&reader_buffer);
+
     var buffer: [8192]u8 = undefined;
     while (true) {
-        const len = try buffered.read(&buffer);
+        const len = try reader.interface.readSliceShort(&buffer);
         if (len == 0) {
             break;
         }
@@ -233,8 +235,8 @@ pub fn sha256Alloc(alloc: std.mem.Allocator, path: []const u8) ![]const u8 {
     var digest = hash.finalResult();
     return try std.fmt.allocPrint(
         alloc,
-        "{s}",
-        .{std.fmt.fmtSliceHexLower(&digest)},
+        "{x}",
+        .{&digest},
     );
 }
 
@@ -244,7 +246,7 @@ test "sha256Alloc" {
     const sha256sum = try sha256Alloc(std.testing.allocator, "testdata/test_file");
     defer std.testing.allocator.free(sha256sum);
 
-    try require.equal(expected, sha256sum);
+    try testing.expectEqualStrings(expected, sha256sum);
 }
 
 /// Compare two files
@@ -261,8 +263,8 @@ pub fn isDifferent(alloc: std.mem.Allocator, path_a: []const u8, path_b: []const
 test "isDifferent" {
     const alloc = std.testing.allocator;
 
-    try require.isFalse(isDifferent(alloc, "testdata/test_file", "testdata/test_file"));
-    try require.isFalse(isDifferent(alloc, "", ""));
-    try require.isTrue(isDifferent(alloc, "testdata/test_file", ""));
-    try require.isTrue(isDifferent(alloc, "testdata/test_file", "testdata/test_file2"));
+    try testing.expect(!isDifferent(alloc, "testdata/test_file", "testdata/test_file"));
+    try testing.expect(!isDifferent(alloc, "", ""));
+    try testing.expect(isDifferent(alloc, "testdata/test_file", ""));
+    try testing.expect(isDifferent(alloc, "testdata/test_file", "testdata/test_file2"));
 }

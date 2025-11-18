@@ -13,7 +13,7 @@ pub fn setLevel(level: Level) void {
 }
 
 pub fn init() void {
-    config = std.io.tty.detectConfig(std.io.getStdOut());
+    config = std.io.tty.detectConfig(std.fs.File.stdout());
 }
 
 pub inline fn fatal(comptime format: []const u8, args: anytype) void {
@@ -42,12 +42,16 @@ pub inline fn debug(comptime format: []const u8, args: anytype) void {
 }
 
 inline fn colorPrint(c: std.io.tty.Color, fmt: []const u8, args: anytype) void {
-    const out = std.io.getStdOut();
+    var log_buffer: [4096]u8 = undefined;
+    var stdout_writer = stdout.writer(&log_buffer);
 
-    config.?.setColor(out, c) catch {};
-    out.writer().print(fmt ++ "\n", args) catch {};
-    config.?.setColor(out, .reset) catch {};
+    config.?.setColor(&stdout_writer.interface, c) catch {};
+    stdout_writer.interface.print(fmt ++ "\n", args) catch {};
+    config.?.setColor(&stdout_writer.interface, .reset) catch {};
+
+    stdout_writer.interface.flush() catch {};
 }
 
 var config: ?std.io.tty.Config = null;
 var current_level: u3 = @intFromEnum(Level.info);
+var stdout = std.fs.File.stdout();

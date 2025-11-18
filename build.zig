@@ -18,25 +18,22 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "zutils",
-        .root_source_file = mod.root_source_file.?,
-        .target = target,
-        .optimize = optimize,
+        .root_module = mod,
+        .linkage = .static,
     });
     lib.root_module.addImport("zutils", mod);
 
     b.installArtifact(lib);
     appendDependencies(b, lib, target, optimize, deps);
 
-    const test_deps = &[_]Dependency{.{
-        .name = "protest",
-    }};
-
-    const lib_unit_tests = b.addTest(.{
+    const lib_unit_tests = b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("src/test.zig"),
-    });
-    appendDependencies(b, lib_unit_tests, target, optimize, deps ++ test_deps);
+        .target = target,
+        .optimize = optimize,
+    }) });
+    appendDependencies(b, lib_unit_tests, target, optimize, deps);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
     const test_step = b.step("test", "Run unit tests");

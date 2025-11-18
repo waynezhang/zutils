@@ -1,7 +1,7 @@
 const std = @import("std");
 const net = std.net;
 
-const require = @import("protest").require;
+const testing = @import("std").testing;
 
 /// Send message to TCP port
 pub fn sendTCPMessage(host: []const u8, message: []const u8) !void {
@@ -10,8 +10,8 @@ pub fn sendTCPMessage(host: []const u8, message: []const u8) !void {
     const stream = try net.tcpConnectToAddress(addr);
     defer stream.close();
 
-    var writer = stream.writer();
-    _ = try writer.write(message);
+    var writer = stream.writer(&.{});
+    _ = try writer.interface.write(message);
 }
 
 /// Parses an address:port string supporting both IPv4 and IPv6.
@@ -71,49 +71,49 @@ test "parseAddrPort" {
     // IPv4 tests
     {
         const addr = try parseAddrPort("192.168.1.1:8080");
-        const ipv4 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{}", .{addr});
-        try require.equal("192.168.1.1:8080", ipAddrBuffer[0..ipv4.len]);
+        const ipv4 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{f}", .{addr});
+        try testing.expectEqualStrings("192.168.1.1:8080", ipAddrBuffer[0..ipv4.len]);
     }
     {
         const addr = try parseAddrPort(":8080");
-        const ipv4 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{}", .{addr});
-        try require.equal("127.0.0.1:8080", ipAddrBuffer[0..ipv4.len]);
+        const ipv4 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{f}", .{addr});
+        try testing.expectEqualStrings("127.0.0.1:8080", ipAddrBuffer[0..ipv4.len]);
     }
     {
         const err = parseAddrPort("192.168.1.1:invalid");
-        try require.equalError(error.InvalidPort, err);
+        try testing.expectError(error.InvalidPort, err);
     }
     {
         const err = parseAddrPort("300.168.1.1:8080");
-        try require.equalError(net.IPv4ParseError.Overflow, err);
+        try testing.expectError(net.IPv4ParseError.Overflow, err);
     }
     {
         const err = parseAddrPort("invalid");
-        try require.equalError(net.IPv4ParseError.Incomplete, err);
+        try testing.expectError(net.IPv4ParseError.Incomplete, err);
     }
 
     // IPv6 tests
     {
         const addr = try parseAddrPort("[::1]:8080");
-        const ipv6 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{}", .{addr});
-        try require.equal("[::1]:8080", ipAddrBuffer[0..ipv6.len]);
+        const ipv6 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{f}", .{addr});
+        try testing.expectEqualStrings("[::1]:8080", ipAddrBuffer[0..ipv6.len]);
     }
     {
         const addr = try parseAddrPort("[2001:db8::1]:8080");
-        const ipv6 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{}", .{addr});
-        try require.equal("[2001:db8::1]:8080", ipAddrBuffer[0..ipv6.len]);
+        const ipv6 = try std.fmt.bufPrint(ipAddrBuffer[0..], "{f}", .{addr});
+        try testing.expectEqualStrings("[2001:db8::1]:8080", ipAddrBuffer[0..ipv6.len]);
     }
     {
         const err = parseAddrPort("[::1]");
-        try require.equalError(net.IPv6ParseError.Incomplete, err);
+        try testing.expectError(net.IPv6ParseError.Incomplete, err);
     }
     {
         const err = parseAddrPort("[::1]:invalid");
-        try require.equalError(error.InvalidPort, err);
+        try testing.expectError(error.InvalidPort, err);
     }
     {
         const err = parseAddrPort("[invalid]:8080");
-        try require.equalError(error.InvalidCharacter, err);
+        try testing.expectError(error.InvalidCharacter, err);
     }
 }
 
@@ -122,7 +122,7 @@ test "parseAddrPort" {
 /// Preserves alphanumerics, unreserved chars (-._~), and non-ASCII characters (including CJK).
 /// Only ASCII special characters are percent-encoded.
 pub fn encodeQueryComponentAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
-    var result = std.ArrayList(u8).init(allocator);
+    var result = std.Io.Writer.Allocating.init(allocator);
     defer result.deinit();
 
     // This function preserves alphanumerics, unreserved chars, and all non-ASCII chars
@@ -132,7 +132,7 @@ pub fn encodeQueryComponentAlloc(allocator: std.mem.Allocator, input: []const u8
         }
     }.isValid;
 
-    try std.Uri.Component.percentEncode(result.writer(), input, isValidQueryChar);
+    try std.Uri.Component.percentEncode(&result.writer, input, isValidQueryChar);
 
     return result.toOwnedSlice();
 }
@@ -145,7 +145,7 @@ test "encodeQueryComponentAlloc" {
         const input = "hello world";
         const encoded = try encodeQueryComponentAlloc(allocator, input);
         defer allocator.free(encoded);
-        try require.equal("hello%20world", encoded);
+        try testing.expectEqualStrings("hello%20world", encoded);
     }
 
     // Test special characters
@@ -153,7 +153,7 @@ test "encodeQueryComponentAlloc" {
         const input = "a=1&b=2+c?d/e";
         const encoded = try encodeQueryComponentAlloc(allocator, input);
         defer allocator.free(encoded);
-        try require.equal("a%3D1%26b%3D2%2Bc%3Fd%2Fe", encoded);
+        try testing.expectEqualStrings("a%3D1%26b%3D2%2Bc%3Fd%2Fe", encoded);
     }
 
     // Test non-ASCII Unicode characters (should be preserved)
@@ -161,6 +161,6 @@ test "encodeQueryComponentAlloc" {
         const input = "こんにちは"; // "Hello" in Japanese
         const encoded = try encodeQueryComponentAlloc(allocator, input);
         defer allocator.free(encoded);
-        try require.equal("こんにちは", encoded);
+        try testing.expectEqualStrings("こんにちは", encoded);
     }
 }

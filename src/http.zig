@@ -7,44 +7,28 @@ pub fn download(allocator: std.mem.Allocator, url: []const u8, dst: []const u8) 
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
 
-    const header_buf = try allocator.alloc(u8, 1024 * 1024);
-    defer allocator.free(header_buf);
-
-    var req = try client.open(.GET, uri, .{ .server_header_buffer = header_buf });
-    defer req.deinit();
-
-    try req.send();
-    try req.finish();
-    try req.wait();
-
-    if (req.response.status != .ok) {
-        return error.HttpError;
-    }
-
     const f = try std.fs.cwd().createFile(dst, .{
         .read = true,
         .truncate = true,
     });
     defer f.close();
 
-    var buf_writer = std.io.bufferedWriter(f.writer());
+    var write_buffer: [8 * 1024]u8 = undefined;
+    var file_writer = f.writer(&write_buffer);
 
-    const buffer = try allocator.alloc(u8, 1024 * 1024);
-    defer allocator.free(buffer);
+    var redirect_buffer: [8 * 1024]u8 = undefined;
+    const response = try client.fetch(.{
+        .location = .{ .uri = uri },
+        .method = .GET,
+        .redirect_buffer = &redirect_buffer,
+        .response_writer = &file_writer.interface,
+    });
 
-    while (true) {
-        const read = try req.reader().read(buffer);
-        if (read == 0) {
-            break;
-        }
-
-        const written = try buf_writer.write(buffer[0..read]);
-        if (written != read) {
-            return error.WriteError;
-        }
+    if (response.status != .ok) {
+        return error.HttpError;
     }
 
-    try buf_writer.flush();
+    try file_writer.interface.flush();
 }
 
 test "download file from URL" {

@@ -1,8 +1,6 @@
 const std = @import("std");
 const fs = @import("fs.zig");
-const require = @import("protest").require;
-
-const gzip = std.compress.gzip;
+const testing = @import("std").testing;
 
 /// Unarchive a Gzip file to dst path
 pub fn unarchive(src: []const u8, dst: []const u8) !void {
@@ -12,15 +10,18 @@ pub fn unarchive(src: []const u8, dst: []const u8) !void {
     const dst_file = try std.fs.cwd().createFile(dst, .{ .truncate = true });
     defer dst_file.close();
 
-    var buffered_reader = std.io.bufferedReader(src_file.reader());
-    const reader = buffered_reader.reader();
+    var read_buffer: [8 * 1024]u8 = undefined;
+    var reader = src_file.reader(&read_buffer);
 
-    var buffered_writer = std.io.bufferedWriter(dst_file.writer());
-    const writer = buffered_writer.writer();
+    var write_buffer: [8 * 1024]u8 = undefined;
+    var writer = dst_file.writer(&write_buffer);
 
-    try gzip.decompress(reader, writer);
+    var decompress_buffer: [std.compress.flate.max_window_len]u8 = undefined;
 
-    try buffered_writer.flush();
+    var decompress: std.compress.flate.Decompress = .init(&reader.interface, .gzip, &decompress_buffer);
+    _ = try decompress.reader.streamRemaining(&writer.interface);
+
+    try writer.interface.flush();
 }
 
 test "unarchive" {
@@ -43,7 +44,7 @@ test "unarchive" {
     const checksum = try fs.sha256Alloc(std.testing.allocator, dst_path);
     defer std.testing.allocator.free(checksum);
 
-    try require.equal(original_checksum, checksum);
+    try testing.expectEqualStrings(original_checksum, checksum);
 }
 
 /// Extract a tarball to dst directory
@@ -51,15 +52,15 @@ pub fn extractTarball(src: []const u8, dst_dir: []const u8) !void {
     const src_file = try std.fs.cwd().openFile(src, .{});
     defer src_file.close();
 
-    var buffered_reader = std.io.bufferedReader(src_file.reader());
-    const reader = buffered_reader.reader();
+    var read_buffer: [8192]u8 = undefined;
+    var reader = src_file.reader(&read_buffer);
 
-    var gzip_stream = std.compress.gzip.decompressor(reader);
-    const gzip_reader = gzip_stream.reader();
+    var gzip_buf: [std.compress.flate.max_window_len]u8 = undefined;
+    var decompress: std.compress.flate.Decompress = .init(&reader.interface, .gzip, &gzip_buf);
 
     var dir = try std.fs.cwd().openDir(dst_dir, .{});
     defer dir.close();
-    try std.tar.pipeToFileSystem(dir, gzip_reader, .{});
+    try std.tar.pipeToFileSystem(dir, &decompress.reader, .{});
 }
 
 test "extractTarball" {
@@ -84,5 +85,6 @@ test "extractTarball" {
 
     const checksum = try fs.sha256Alloc(alloc, file_path);
     defer alloc.free(checksum);
-    try require.equal(expected_checksum, checksum);
+
+    try testing.expectEqualStrings(expected_checksum, checksum);
 }
