@@ -43,7 +43,7 @@ pub inline fn debug(comptime format: []const u8, args: anytype) void {
 
 inline fn colorPrint(c: std.io.tty.Color, fmt: []const u8, args: anytype) void {
     var log_buffer: [4096]u8 = undefined;
-    var stdout_writer = stdout.writer(&log_buffer);
+    var stdout_writer = std.fs.File.stdout().writer(&log_buffer);
 
     config.?.setColor(&stdout_writer.interface, c) catch {};
     stdout_writer.interface.print(fmt ++ "\n", args) catch {};
@@ -54,4 +54,3 @@ inline fn colorPrint(c: std.io.tty.Color, fmt: []const u8, args: anytype) void {
 
 var config: ?std.io.tty.Config = null;
 var current_level: u3 = @intFromEnum(Level.info);
-var stdout = std.fs.File.stdout();
